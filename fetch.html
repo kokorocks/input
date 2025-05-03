@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>URL Preview Input</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2em;
+    }
+    #previewCard {
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 10px;
+      max-width: 400px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    #previewCard img {
+      max-width: 100%;
+      border-radius: 6px;
+    }
+    .meta-url {
+      color: #555;
+      font-size: 0.8em;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🔗 URL Preview Input</h2>
+  <input type="text" id="urlInput" placeholder="Paste a link..." style="width: 100%; padding: 8px; font-size: 1em;">
+  <a href="https://www.w3schools.com">
+  <div id="previewCard"></div></a>
+
+  <script>
+    const input = document.getElementById('urlInput');
+    const preview = document.getElementById('previewCard');
+
+    input.addEventListener('change', async () => {
+      const url = input.value.trim();
+      if (!url.startsWith('http')) return;
+
+      preview.innerHTML = '🔍 Fetching preview...';
+
+      try {
+        const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+        const json = await res.json();
+
+        if (json.status !== 'success') {
+          preview.innerHTML = '❌ Failed to load preview.';
+          return;
+        }
+
+        const data = json.data;
+        preview.innerHTML = `
+          <img src="${data.image?.url || data.logo?.url || ''}" alt="Preview image" />
+          <h3>${data.title || 'No title'}</h3>
+          <p>${data.description || 'No description available.'}</p>
+          <div class="meta-url">${data.url}</div>
+        `;
+      } catch (err) {
+        console.error(err);
+        preview.innerHTML = '⚠️ Error loading preview.';
+      }
+    });
+  </script>
+
+</body>
+</html>
