@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Location Picker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; }
+    #pickLocationBtn { 
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    #mapModal {
+      display: none;
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: white;
+      border: 2px solid #444;
+      z-index: 999;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    #map { width: 100%; height: 80%; }
+    #info { padding: 10px; font-size: 14px; }
+    .closeBtn {
+      float: right;
+      cursor: pointer;
+      background: #f44336;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      font-size: 16px;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="pickLocationBtn" onclick="openPicker()">Pick a Location</button>
+
+  <div id="mapModal">
+    <button class="closeBtn" onclick="closePicker()">X</button>
+    <div id="map"></div>
+    <div id="info">Click the map to get the address...</div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+  <script>
+    let map, marker, currentLayer;
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+    const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+      subdomains: ['mt0', 'mt1', 'mt2'],
+      attribution: '&copy; Google'
+    });
+
+    function openPicker() {
+      document.getElementById("mapModal").style.display = "block";
+      positionMapModal();
+      if (!map) initMap();
+    }
+
+    function closePicker() {
+      document.getElementById("mapModal").style.display = "none";
+    }
+
+    function positionMapModal() {
+      const button = document.getElementById("pickLocationBtn");
+      const modal = document.getElementById("mapModal");
+
+      const buttonRect = button.getBoundingClientRect();
+      const modalHeight = modal.offsetHeight;
+      const windowHeight = window.innerHeight;
+
+      // Check space above and below the button
+      const spaceAbove = buttonRect.top;
+      const spaceBelow = windowHeight - buttonRect.bottom;
+
+      // Position the modal based on available space
+      if (spaceBelow > spaceAbove) {
+        modal.style.top = `${buttonRect.bottom + window.scrollY + 10}px`; // Below the button
+      } else {
+        modal.style.top = `${buttonRect.top + window.scrollY - modalHeight - 10}px`; // Above the button
+      }
+    }
+
+    function initMap() {
+      map = L.map('map').setView([0, 0], 2);
+      currentLayer = streetLayer.addTo(map);
+
+      // Add layer switch
+      const baseMaps = {
+        "Street": streetLayer,
+        "Satellite": satelliteLayer
+      };
+      L.control.layers(baseMaps).addTo(map);
+
+      // Add search
+      L.Control.geocoder().on('markgeocode', function(e) {
+        const latLng = e.geocode.center;
+        updateMarker(latLng);
+        getAddress(latLng.lat, latLng.lng);
+      }).addTo(map);
+
+      // Add marker click
+      map.on('click', function (e) {
+        const { lat, lng } = e.latlng;
+        updateMarker(e.latlng);
+        getAddress(lat, lng);
+      });
+
+      autoLocate();
+    }
+
+    function updateMarker(latlng) {
+      if (marker) {
+        marker.setLatLng(latlng);
+      } else {
+        marker = L.marker(latlng).addTo(map);
+      }
+    }
+
+    function getAddress(lat, lng) {
+      document.getElementById('info').textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)} — Getting address...`;
+
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+        .then(res => res.json())
+        .then(data => {
+          const address = data.display_name || "Unknown location";
+          document.getElementById('info').textContent = `📍 ${address}`;
+          document.getElementById("pickLocationBtn").textContent = `Location: ${address}`;
+        })
+        .catch(err => {
+          document.getElementById('info').textContent = "Failed to get address.";
+        });
+    }
+
+    async function autoLocate() {
+      // Try browser geolocation
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const latlng = [pos.coords.latitude, pos.coords.longitude];
+          map.setView(latlng, 13);
+        },
+        async () => {
+          // Fallback to IP-based
+          try {
+            const res = await fetch("https://ipapi.co/json/");
+            const data = await res.json();
+            map.setView([data.latitude, data.longitude], 5);
+          } catch (err) {
+            console.warn("IP location failed.");
+          }
+        }
+      );
+    }
+  </script>
+</body>
+</html>
